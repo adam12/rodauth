@@ -39,6 +39,7 @@ module Rodauth
     auth_value_method :recovery_codes_label, 'Recovery Code'
     auth_value_method :recovery_codes_param, 'recovery-code'
     auth_value_method :recovery_codes_table, :account_recovery_codes
+    auth_value_method :recovery_codes_session_key, 'recovery-codes-authenticated'
 
     auth_cached_method :recovery_codes
 
@@ -87,7 +88,11 @@ module Rodauth
       before_recovery_codes_route
 
       r.get do
-        recovery_codes_view
+        if recovery_codes_authenticated_session?
+          render_recovery_codes
+        else
+          recovery_codes_view
+        end
       end
 
       r.post do
@@ -99,14 +104,17 @@ module Rodauth
                 add_recovery_codes(recovery_codes_limit - recovery_codes.length)
                 after_add_recovery_codes
               end
-              set_notice_now_flash recovery_codes_added_notice_flash
+              set_notice_flash recovery_codes_added_notice_flash
             end
 
             self.recovery_codes_button = add_recovery_codes_button
           end
 
-          before_view_recovery_codes
-          add_recovery_codes_view
+          if defined?(json_request?) && json_request?
+            render_recovery_codes
+          else
+            set_recovery_codes_session_key_and_redirect
+          end
         else
           if param_or_nil(add_recovery_codes_param)
             set_error_flash add_recovery_codes_error_flash
@@ -122,6 +130,29 @@ module Rodauth
     end
 
     attr_accessor :recovery_codes_button
+
+    def render_recovery_codes
+      if can_add_recovery_codes?
+        self.recovery_codes_button = add_recovery_codes_button
+      end
+
+      clear_recovery_codes_session_key
+      before_view_recovery_codes
+      add_recovery_codes_view
+    end
+
+    def recovery_codes_authenticated_session?
+      param_or_nil(password_param) || session[recovery_codes_session_key] == true
+    end
+
+    def set_recovery_codes_session_key_and_redirect
+      session[recovery_codes_session_key] = true
+      redirect add_recovery_codes_redirect
+    end
+
+    def clear_recovery_codes_session_key
+      session[recovery_codes_session_key] = nil
+    end
 
     def two_factor_need_setup_redirect
       super || (add_recovery_codes_redirect if recovery_codes_primary?)
