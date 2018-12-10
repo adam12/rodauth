@@ -143,6 +143,19 @@ class Minitest::HooksSpec
       app.plugin :request_aref, :raise
     rescue LoadError
     end
+
+    app.plugin :module_include
+    app.response_module do
+      def redirect(path, status=nil)
+        if path.match?(/recovery/)
+          puts "=" * 80
+          puts caller
+          puts "=" * 80
+        end
+
+        super
+      end
+    end
     app.opts[:unsupported_block_result] = :raise
     app.opts[:unsupported_matcher] = :raise
     app.opts[:verbatim_string_matcher] = true
